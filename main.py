@@ -63,7 +63,7 @@ from .modules.speak import insert_quote, send_text, split_plain_segments
 from .modules.vision import caption
 
 PLUGIN_NAME = "astrbot_plugin_chatterbox"
-VERSION = "0.19.2"
+VERSION = "0.20.0"
 
 TAG = "[话匣子]"
 EXTRA_BLOCKED = "chatterbox_gated"

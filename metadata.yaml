@@ -1,10 +1,10 @@
 name: astrbot_plugin_chatterbox
 display_name: 话匣子
 desc: 让机器人在群里像真人：潜水/活跃/休眠/探话四态、被 @ 或引用必回并引用该条、冷场主动开话题、发言限流防刷屏、上下文按需读取图片与语音。
-short_desc: 潜水/活跃/休眠 + 必回带引用 + 冷场试探 + 发言限流
+short_desc: 四态群聊节奏 + 必回带引用 + 每群启停 + 冷场试探 + 限流
 author: Minazuki26710
 repo: https://github.com/Minazuki26710/chatterbox
-version: v0.19.2
+version: v0.20.0
 astrbot_version: ">=4.29,<5"
 support_platforms:
   - aiocqhttp

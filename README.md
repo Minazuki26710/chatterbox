@@ -4,7 +4,7 @@
 
 面向 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 的 QQ 群聊行为控制插件。通过状态机、独立模型判定与多级频控闸门，管理机器人在群聊中的发言时机与频率。
 
-- **当前版本**：`v0.19.2`（配置项与默认值以 `_conf_schema.json` 及本文档为准）
+- **当前版本**：`v0.20.0`（配置项与默认值以 `_conf_schema.json` 及本文档为准）
 - **验证状态**：已完成 U1 / U2 / U3 / U5（U5-5 第二群对照除外）/ U6 真机验收（AstrBot 4.29.4 + aiocqhttp，独立测试实例），含叫名字、影子模式、单群启停、判定链路与提示词解耦。**U4 媒体能力尚未真机验证**（需视觉/STT 模型，可能产生费用）。投入生产群前仍建议先在测试群灰度。
 
 ---
@@ -141,7 +141,7 @@ git clone https://github.com/Minazuki26710/chatterbox.git
 python tests/test_core.py
 ```
 
-当前共包含 281 项纯逻辑断言测试。`main.py` 中的事件钩子与平台交互链路需在 AstrBot 环境中通过真机测试验证。
+当前共包含 284 项纯逻辑断言测试。`main.py` 中的事件钩子与平台交互链路需在 AstrBot 环境中通过真机测试验证。
 
 ---
 
