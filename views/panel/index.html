@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>话匣子</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg:#fff; --surface:#fcfcfb; --card:#f6f8fa; --fg:#1f2328; --muted:#656d76;
+    --line:#e5e7eb; --accent:#2563eb; --good:#15803d; --bad:#c2410c; --warn:#a16207;
+    --goodbg:#eaf5ea; --badbg:#fdeeea; --warnbg:#fff7ed;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg:#16181d; --surface:#1a1a19; --card:#1e2128; --fg:#e6e6e6; --muted:#9aa4b2;
+      --line:#2c313a; --accent:#60a5fa; --good:#4ade80; --bad:#fb923c; --warn:#facc15;
+      --goodbg:#16281c; --badbg:#2a1f16; --warnbg:#2a2416;
+    }
+  }
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --bg:#16181d; --surface:#1a1a19; --card:#1e2128; --fg:#e6e6e6; --muted:#9aa4b2;
+    --line:#2c313a; --accent:#60a5fa; --good:#4ade80; --bad:#fb923c; --warn:#facc15;
+    --goodbg:#16281c; --badbg:#2a1f16; --warnbg:#2a2416;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
+         font:14px/1.6 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+  h1 { font-size:18px; font-weight:600; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:14px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .stat { min-width:110px; flex:1 1 110px; }
+  .stat b { display:block; font-size:20px; font-weight:600; line-height:1.3; }
+  .stat span { color:var(--muted); font-size:12px; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px;
+           border:1px solid var(--line); background:var(--surface); }
+  .badge.off { color:var(--warn); background:var(--warnbg); border-color:transparent; }
+  .badge.on { color:var(--good); background:var(--goodbg); border-color:transparent; }
+  button { font:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--line);
+           background:var(--surface); color:var(--fg); padding:6px 12px; }
+  button:hover { border-color:var(--accent); color:var(--accent); }
+  button.primary { background:var(--accent); color:#fff; border-color:transparent; }
+  button.primary:hover { opacity:.9; color:#fff; }
+  h2 { font-size:14px; font-weight:600; margin:18px 0 8px; color:var(--muted); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:10px; }
+  .gcard { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .gcard .top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .gid { font-family:ui-monospace,Consolas,monospace; font-size:13px; }
+  .pill { font-size:12px; padding:1px 8px; border-radius:999px; }
+  .pill.active { color:var(--good); background:var(--goodbg); }
+  .pill.dive { color:var(--muted); background:var(--surface); border:1px solid var(--line); }
+  .pill.probing { color:var(--warn,#b8860b); background:rgba(184,134,11,.12); border:1px solid rgba(184,134,11,.35); }
+.pill.sleep { color:#6b5bd2; background:rgba(107,91,210,.12); border:1px solid rgba(107,91,210,.35); }
+  .meta { color:var(--muted); font-size:12px; margin-top:6px; }
+  .bar { height:5px; border-radius:3px; background:var(--line); margin-top:8px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--accent); }
+  .last { margin-top:8px; font-size:12px; padding:6px 8px; border-radius:6px; background:var(--surface); }
+  .last.reply { color:var(--good); }
+  .last.skip { color:var(--muted); }
+  .acts { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; }
+  td.mono { font-family:ui-monospace,Consolas,monospace; }
+  .v-reply { color:var(--good); font-weight:600; }
+  .v-skip { color:var(--muted); }
+  .kv { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:6px 14px; font-size:13px; }
+  .kv div span { color:var(--muted); }
+  #err { color:var(--bad); font-size:13px; margin-top:10px; }
+  .empty { color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<h1>话匣子</h1>
+<div class="sub" id="sub">正在连接 AstrBot…</div>
+
+<div class="row">
+  <div class="card stat"><b id="s-shadow">-</b><span>主动发言影子</span></div>
+  <div class="card stat"><b id="s-groups">-</b><span>管理群</span></div>
+  <div class="card stat"><b id="s-judged">-</b><span>累计判定</span></div>
+  <div class="card stat"><b id="s-reply">-</b><span>其中 REPLY</span></div>
+  <div class="card stat" style="flex:0 0 auto;display:flex;align-items:center;gap:8px">
+    <button class="primary" id="btn-shadow">切换主动发言影子</button>
+  </div>
+</div>
+
+<h2>群状态</h2>
+<div class="grid" id="groups"></div>
+
+<h2>判定流水（最近 40 条）</h2>
+<div class="card" style="padding:0">
+  <table>
+    <thead><tr><th style="width:70px">时间</th><th style="width:96px">群</th><th style="width:56px">状态</th><th style="width:62px">结论</th><th>理由</th><th style="width:64px">耗时</th></tr></thead>
+    <tbody id="log"><tr><td colspan="6" class="empty">还没有判定记录</td></tr></tbody>
+  </table>
+</div>
+
+<h2>发言档案（最近 20 条）· 点一行看它当时依据了什么</h2>
+<div class="card" style="padding:0">
+  <table>
+    <thead><tr><th style="width:70px">时间</th><th style="width:96px">群</th><th style="width:72px">触发</th><th style="width:56px">判定</th><th style="width:44px">记忆</th><th>回复</th></tr></thead>
+    <tbody id="traces"><tr><td colspan="6" class="empty">还没有发言档案</td></tr></tbody>
+  </table>
+</div>
+<div class="card" id="trace-detail" style="margin-top:10px;display:none"></div>
+
+<h2>当前参数</h2>
+<div class="card"><div class="kv" id="cfg"></div></div>
+
+<div id="err"></div>
+
+<script>
+(function () {
+  var api = null;
+  var state = null;
+  var $ = function (id) { return document.getElementById(id); };
+
+  function stateLabel(s) { return s === "active" ? "活跃" : s === "probing" ? "探话中" : s === "sleep" ? "休眠" : "潜水"; }
+
+    function fmtDur(sec) {
+    if (sec <= 0) return "已到期";
+    var m = Math.floor(sec / 60);
+    return m >= 1 ? m + " 分钟" : sec + " 秒";
+  }
+  function fmtTime(ts) {
+    var d = new Date(ts * 1000);
+    var p = function (n) { return n < 10 ? "0" + n : "" + n; };
+    return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function triggerLabel(t) {
+    return { at: "被 @", name: "叫名字", proactive: "主动接话" }[t] || "回复";
+  }
+
+  function renderTraces(d) {
+    var tb = $("traces");
+    tb.innerHTML = "";
+    var items = d.trace_items || [];
+    if (!items.length) {
+      tb.innerHTML = '<tr><td colspan="6" class="empty">还没有发言档案。它说一句话就会记一条。</td></tr>';
+      return;
+    }
+    items.forEach(function (it) {
+      var tr = document.createElement("tr");
+      tr.style.cursor = "pointer";
+      tr.setAttribute("data-ts", it.ts);
+      tr.innerHTML = "<td class='mono'>" + fmtTime(it.ts) + "</td>" +
+        "<td class='mono'>" + esc(it.gid) + "</td>" +
+        "<td>" + triggerLabel(it.trigger) + "</td>" +
+        "<td class='" + (it.verdict === "REPLY" ? "v-reply" : "v-skip") + "'>" + (it.verdict || "-") + "</td>" +
+        "<td class='mono'>" + it.mem + "</td>" +
+        "<td>" + esc(it.reply || it.prompt || "") + "</td>";
+      tb.appendChild(tr);
+    });
+  }
+
+  function nl2br(s) { return esc(s).replace(/\n/g, "<br>"); }
+
+  async function showTrace(ts, withKb) {
+    var box = $("trace-detail");
+    box.style.display = "block";
+    box.innerHTML = '<div class="empty">读取中…</div>';
+    try {
+      var r = await api.apiPost("action", { m: "trace", ts: ts, kb: !!withKb });
+      var outer = r && r.data ? r.data : r;
+      if (outer && outer.status === "error") {
+        box.innerHTML = '<div class="empty">' + esc(outer.message) + "</div>";
+        return;
+      }
+      var d = (outer && outer.data) || outer || {};
+      var mems = d.memories || [];
+      var memHtml = mems.length
+        ? "<div style='margin-top:8px'><span class='meta'>记忆（" + mems.length + " 条）</span>" +
+          mems.map(function (m, i) { return "<div>" + (i + 1) + ". " + esc(m) + "</div>"; }).join("") + "</div>"
+        : "<div class='meta' style='margin-top:8px'>记忆：未启用或无召回</div>";
+      var kb = d.kb_names || [];
+      var kbHtml = "";
+      if (kb.length) {
+        kbHtml = "<div style='margin-top:8px'><span class='meta'>知识库：" + esc(kb.join("、")) + "</span> ";
+        if (d.kb_text) {
+          kbHtml += '<div class="last" style="margin-top:4px">' + nl2br(d.kb_text) + "</div>";
+        } else {
+          kbHtml += "<button data-kb='" + ts + "'>实时复算</button></div>";
+        }
+        if (d.kb_text) kbHtml += "</div>";
+      } else {
+        kbHtml = "<div class='meta' style='margin-top:8px'>知识库：未启用</div>";
+      }
+      box.innerHTML =
+        '<div class="row" style="justify-content:space-between;align-items:flex-start">' +
+        "<b>" + fmtTime(d.ts) + " · 群 " + esc(d.gid) + "</b>" +
+        "<button data-close='1'>关闭</button></div>" +
+        '<div class="meta">触发：' + triggerLabel(d.trigger) + " · 状态：" + esc(d.state || "-") +
+        (d.verdict ? " · 判定：" + d.verdict + "（" + esc(d.reason) + "）" : "") +
+        " · 人格：" + esc(d.persona || "-") + " · 上下文 " + d.ctx_count + " 条</div>" +
+        "<div style='margin-top:8px'><span class='meta'>提问：</span>" + esc(d.prompt || "-") + "</div>" +
+        memHtml +
+        kbHtml +
+        "<div style='margin-top:8px'><span class='meta'>回复：</span>" + nl2br(d.reply || "") + "</div>";
+      box.querySelector("[data-close]").addEventListener("click", function () { box.style.display = "none"; });
+      var kbBtn = box.querySelector("[data-kb]");
+      if (kbBtn) kbBtn.addEventListener("click", function () { showTrace(ts, true); });
+    } catch (e) {
+      box.innerHTML = '<div class="empty">读取失败：' + esc(e && e.message ? e.message : e) + "</div>";
+    }
+  }
+
+  // 群卡片上的手动操作：每群启停 + 休眠 → 只能解除休眠；潜水 → 进活跃；活跃/探话 → 加时或打回潜水
+  function actsHtml(g) {
+    var gid = esc(g.gid);
+    var toggle = g.disabled
+      ? '<button class="primary" data-toggle="' + gid + '">启用本群</button>'
+      : '<button data-toggle="' + gid + '">停用本群</button>';
+    if (g.disabled) {
+      return '<div class="acts">' + toggle + "</div>";
+    }
+    if (g.sleeping || g.state === "sleep") {
+      return '<div class="acts">' + toggle +
+        '<button class="primary" data-unsleep="' + gid + '">解除休眠</button></div>';
+    }
+    if (g.state === "dive") {
+      return '<div class="acts">' + toggle +
+        '<button class="primary" data-active="' + gid + '">进活跃</button></div>';
+    }
+    if (g.state === "active" || g.state === "probing") {
+      return '<div class="acts">' + toggle +
+        '<button data-active="' + gid + '">加时</button>' +
+        '<button data-dive="' + gid + '">打回潜水</button></div>';
+    }
+    return '<div class="acts">' + toggle + "</div>";
+  }
+
+  function render(d) {
+    state = d;
+    $("sub").textContent = "v" + d.version + " · 心跳 " + d.ticks + " 次 · 每 5 秒刷新" +
+      (d.enabled ? "" : " · 插件已全局关闭（enabled=false），下面的群操作不会让它生效") +
+      (d.shadow ? " · 主动发言影子：只判定不主动说话，@/引用照常回复" : " · 已放开：判定 REPLY 会主动接话") +
+      (d.sleeping_now ? " · 现在处于休眠时段，「进活跃」不会生效" : "");
+    $("s-shadow").textContent = d.shadow ? "开" : "关";
+    $("s-shadow").style.color = d.shadow ? "var(--warn)" : "var(--good)";
+    $("s-groups").textContent = (d.groups || []).length;
+    $("s-judged").textContent = d.judged;
+    $("s-reply").textContent = d.replied;
+
+    var box = $("groups");
+    box.innerHTML = "";
+    if (!d.groups || !d.groups.length) {
+      box.innerHTML = '<div class="empty">没有管理的群。请先在插件配置 groups 里填写要管理的群号。</div>';
+    }
+    (d.groups || []).forEach(function (g) {
+      var card = document.createElement("div");
+      card.className = "gcard";
+      var pct = d.gate_max ? Math.min(100, Math.round(g.gate_used / d.gate_max * 100)) : 0;
+      var lastHtml = g.last
+        ? '<div class="last ' + (g.last.verdict === "REPLY" ? "reply" : "skip") + '">上次 ' +
+          g.last.verdict + "：" + esc(g.last.reason) + "</div>"
+        : '<div class="last skip">还没判定过</div>';
+      card.innerHTML =
+        '<div class="top"><span class="gid">' + esc(g.gid) + "</span>" +
+        '<span class="pill ' + (g.disabled ? "sleep" : g.state) + '">' +
+        (g.disabled ? "已停用" : stateLabel(g.state)) + "</span></div>" +
+        '<div class="meta">' + (g.disabled ? "不在看群 · 被 @/引用的正常回复不受影响" :
+          g.state === "probing" ? "等接话 " + fmtDur(g.remaining_sec) : g.state === "active" ? "剩 " + fmtDur(g.remaining_sec) : g.state === "sleep" ? "休眠中 · @/引用照回（不激活）" : "等待被叫到") +
+        " · 缓冲 " + g.buffer + " 条</div>" +
+        '<div class="meta">闸门 ' + g.gate_used + "/" + d.gate_max + "</div>" +
+        '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
+        lastHtml +
+        actsHtml(g);
+      box.appendChild(card);
+    });
+
+    var tb = $("log");
+    tb.innerHTML = "";
+    if (!d.log || !d.log.length) {
+      tb.innerHTML = '<tr><td colspan="6" class="empty">还没有判定记录。群里有人说话、且间隔到点后就会出现。</td></tr>';
+    }
+    (d.log || []).forEach(function (it) {
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td class='mono'>" + fmtTime(it.ts) + "</td>" +
+        "<td class='mono'>" + esc(it.gid) + "</td>" +
+        "<td>" + stateLabel(it.state) + "</td>" +
+        "<td class='" + (it.verdict === "REPLY" ? "v-reply" : "v-skip") + "'>" + it.verdict + "</td>" +
+        "<td>" + esc(it.reason) + "</td>" +
+        "<td class='mono'>" + it.ms + "ms</td>";
+      tb.appendChild(tr);
+    });
+
+    var c = d.cfg || {};
+    $("cfg").innerHTML =
+      "<div><span>潜水看群间隔：</span>" + c.dive_tick_min + " 分钟</div>" +
+      "<div><span>活跃看群间隔：</span>" + c.active_tick_sec + " 秒</div>" +
+      "<div><span>活跃默认时长：</span>" + c.active_ttl_min + " 分钟</div>" +
+      "<div><span>每次被 @ 加时：</span>" + c.extend_min + " 分钟</div>" +
+      "<div><span>活跃硬顶：</span>" + c.active_max_min + " 分钟</div>" +
+      "<div><span>活跃发言概率：</span>" + c.speak_prob + "</div>" +
+      "<div><span>判定模型：</span>" + (c.judge_provider ? esc(c.judge_provider) : "跟随会话模型（留空即可）") + "</div>" +
+      "<div><span>判定人格：</span>" + (c.judge_persona_chars ? "自定义 " + c.judge_persona_chars + " 字（省 token）" : "跟随会话人格") + "</div>" +
+      "<div><span>活跃态判定：</span>" + (c.judge_in_active ? "先过模型" : "直接按概率（不调模型）") + "</div>" +
+      "<div><span>会话历史：</span>" + (c.history_messages > 0 ? "保留最近 " + c.history_messages + " 条" : "不注入（只靠群聊上下文和你已启用的其他能力）") + "</div>" +
+      "<div><span>休眠：</span>" + (c.sleep_enabled ? "开" : "关") + " · " + (c.sleep_window || "") +
+      " · 每 " + (c.sleep_read_min || 30) + " 分钟读群 · 被 @/引用照回（不激活）</div>" +
+      "<div><span>闸门：</span>" + d.gate_max + " 条 / " + d.gate_window + " 秒</div>";
+
+    renderTraces(d);
+  }
+
+  async function load() {
+    try {
+      var d = await api.apiGet("state");
+      render(d && d.data ? d.data : d);
+      $("err").textContent = "";
+    } catch (e) {
+      $("err").textContent = "读不到插件状态：" + (e && e.message ? e.message : e);
+    }
+  }
+
+  async function act(body) {
+    try {
+      var r = await api.apiPost("action", body);
+      var d = r && r.data ? r : (r || {});
+      if (d && d.status === "error") {
+        $("err").textContent = d.message || "操作失败";
+        return;
+      }
+      // 成功不写 #err（那是红字报错位）；卡片状态会在下面的 load() 里立刻变成「活跃 · 剩 N 分钟」
+      $("err").textContent = "";
+      await load();
+    } catch (e) {
+      $("err").textContent = "操作失败：" + (e && e.message ? e.message : e);
+    }
+  }
+
+  async function start() {
+    for (var i = 0; i < 50 && !window.AstrBotPluginView; i++) {
+      await new Promise(function (r) { setTimeout(r, 100); });
+    }
+    api = window.AstrBotPluginView;
+    if (!api) {
+      $("err").textContent = "这个页面要在 AstrBot 的插件页面里打开。";
+      return;
+    }
+    await api.ready();
+
+    $("btn-shadow").addEventListener("click", function () {
+      if (!state) return;
+      var next = !state.shadow;
+      var msg = next ? "打开主动发言影子？开启后不会主动接话或开话题，被 @/引用的回复仍正常。" : "关闭主动发言影子？关闭后判定 REPLY 会在群里主动说话。";
+      if (confirm(msg)) act({ m: "shadow", enabled: next });
+    });
+    $("groups").addEventListener("click", function (ev) {
+      var btn = ev.target.closest("button[data-toggle]");
+      if (btn) {
+        var gid = btn.getAttribute("data-toggle");
+        var cur = (state.groups || []).filter(function (g) { return g.gid === gid; })[0];
+        var next = cur ? !cur.disabled : true;
+        if (next || confirm("停用本群？停用后不看群、不判定、不主动发言；被 @/引用的正常回复不受影响。"))
+          act({ m: "group_toggle", gid: gid, enabled: next });
+        return;
+      }
+      btn = ev.target.closest("button[data-unsleep]");
+      if (btn) {
+        act({ m: "unsleep", gid: btn.getAttribute("data-unsleep") });
+        return;
+      }
+      btn = ev.target.closest("button[data-dive]");
+      if (btn) {
+        act({ m: "dive", gid: btn.getAttribute("data-dive") });
+        return;
+      }
+      btn = ev.target.closest("button[data-active]");
+      if (btn) act({ m: "active", gid: btn.getAttribute("data-active") });
+    });
+    $("traces").addEventListener("click", function (ev) {
+      var tr = ev.target.closest("tr[data-ts]");
+      if (!tr) return;
+      showTrace(parseFloat(tr.getAttribute("data-ts")), false);
+    });
+
+    await load();
+    setInterval(load, 5000);
+  }
+
+  window.addEventListener("load", start);
+})();
+</script>
+</body>
+</html>

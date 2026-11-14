@@ -1,0 +1,362 @@
+{
+  "enabled": {
+    "description": "总开关",
+    "type": "bool",
+    "default": true,
+    "hint": "关掉后插件不参与任何判定，群聊行为回到 AstrBot 默认。"
+  },
+  "groups": {
+    "description": "管理的群号",
+    "type": "list",
+    "default": [],
+    "hint": "要管理的群号列表。留空 = 未配置：插件不会在任何群生效。每个群可在面板的群卡片上单独启停。建议先只填一个测试群灰度。"
+  },
+  "disabled_groups": {
+    "description": "已停用的群",
+    "type": "list",
+    "default": [],
+    "hint": "由面板群卡片上的启停开关维护：停用的群不看群、不判定、不主动发言（被 @/引用的正常回复由 AstrBot 自己处理，不受影响）。一般不用手动改。"
+  },
+  "state": {
+    "description": "状态机",
+    "type": "object",
+    "items": {
+      "dive_tick_min": {
+        "description": "潜水：几分钟看一次群",
+        "type": "float",
+        "default": 3.0,
+        "hint": "潜水态每隔这么久看一眼群；只有出现新消息才会交给判断模型。"
+      },
+      "dive_min_new_msgs": {
+        "description": "潜水态至少攒够几条新消息才判定",
+        "type": "int",
+        "default": 5,
+        "hint": "潜水态不主动说话，只在「确实聊起来了」时才考虑接。1 条消息就判容易在无关话题上插嘴。被 @ / 叫名字不受此限。"
+      },
+      "active_tick_sec": {
+        "description": "活跃：几秒看一次群",
+        "type": "float",
+        "default": 30.0,
+        "hint": "活跃态看得更勤，但更短间隔不等于更多发言，还要过概率和模型判断。"
+      },
+      "active_ttl_min": {
+        "description": "活跃默认持续几分钟",
+        "type": "float",
+        "default": 30.0
+      },
+      "extend_per_trigger_min": {
+        "description": "每次被 @ / 引用加几分钟",
+        "type": "float",
+        "default": 3.0
+      },
+      "active_max_min": {
+        "description": "活跃最长不超过几分钟",
+        "type": "float",
+        "default": 120.0,
+        "hint": "硬上限。刷屏群不加这条会一直活跃，潜水态等于失效。"
+      },
+      "extend_cooldown_min": {
+        "description": "到达上限后冷却几分钟",
+        "type": "float",
+        "default": 5.0,
+        "hint": "冷却期内自动续期失效，但被 @ 仍然回一次。"
+      },
+      "active_speak_gap_sec": {
+        "description": "两次说话之间至少隔几秒",
+        "type": "float",
+        "default": 25.0,
+        "hint": "含被 @ 的回复。不设的话，@ 的回复还在分段发出时，主动接话会插到中间，看起来像语无伦次。"
+      }
+    }
+  },
+  "sleep": {
+    "description": "休眠时段",
+    "type": "object",
+    "items": {
+      "enabled": {
+        "description": "启用休眠",
+        "type": "bool",
+        "default": false,
+        "hint": "默认关闭。开启后，在下面这个时间段里：不主动判定、不主动说话，只按设定节奏读群；被 @ 或引用 bot 仍会正常回复，但不进入活跃（不续期）。时间按 AstrBot 所在服务器的本地时间计算。"
+      },
+      "start": {
+        "description": "每天几点开始休眠",
+        "type": "string",
+        "default": "00:00",
+        "hint": "24 小时制 HH:MM，使用 AstrBot 所在服务器的本地时间。开始时间晚于结束时间表示跨午夜（例如 23:00 到 07:00）。"
+      },
+      "end": {
+        "description": "每天几点结束休眠",
+        "type": "string",
+        "default": "08:00",
+        "hint": "使用服务器本地时间。到点自动回潜水，之后照常按潜水/活跃规则工作。"
+      },
+      "read_tick_min": {
+        "description": "休眠中每几分钟读一次群",
+        "type": "float",
+        "default": 30.0,
+        "hint": "只更新上下文和图片转述，不判定、不发言。醒来后第一次判定能看到休眠期间的新消息，但受「注入最近多少条消息」上限约束，不保证覆盖全部历史。"
+      }
+    }
+  },
+  "context": {
+    "description": "上下文注入",
+    "type": "object",
+    "items": {
+      "ctx_messages": {
+        "description": "注入最近多少条消息",
+        "type": "int",
+        "default": 30
+      },
+      "history_messages": {
+        "description": "保留多少条 AstrBot 会话历史（0 = 不要）",
+        "type": "int",
+        "default": 0,
+        "hint": "AstrBot 默认会把整个会话历史每轮都发给模型，话题越旧越费 token。0 = 不携带；插件自己注入的「最近 N 条」不受此项影响，两者是两套上下文。填 2~6 可以额外保留最近一两轮对话作为补充。只影响本插件管理的群，私聊不动。"
+      },
+      "recent_split": {
+        "description": "其中最近几条算「当前话题」",
+        "type": "int",
+        "default": 8,
+        "hint": "剩下的作为「更早的背景」。分段是为了让模型分清哪些是正在聊的，避免对着旧话题接话。"
+      },
+      "read_images": {
+        "description": "读图（转述成文字）",
+        "type": "bool",
+        "default": false,
+        "hint": "默认关闭。开启后每张图都会调用视觉模型转述成文字，产生额外费用与网络请求；需要在 AstrBot 配置可用的图片转述模型（或在本插件指定 context.vision_provider_id）。同一张图按 URL 缓存，重复出现不重复计费；关掉后图片只保留 [图片] 占位符。"
+      },
+      "caption_async": {
+        "description": "后台预转述（不阻塞判定）",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后：图片一进群就丢后台转述，判定时读缓存，拿不到就先按 [图片] 走。关闭则当场转述，判定会变慢（具体耗时取决于模型和网络），但这一轮就能看到图。"
+      },
+      "caption_queue_max": {
+        "description": "预转述队列上限",
+        "type": "int",
+        "default": 12,
+        "hint": "群里刷图时队列超过这个数就直接放弃（记 [图片]），避免越积越多、白烧钱。"
+      },
+      "read_voice": {
+        "description": "读语音（转写成文字）",
+        "type": "bool",
+        "default": false,
+        "hint": "默认关闭。开启后群里的语音会调用 STT 模型转写成文字再参与判定，产生额外费用；需要在 AstrBot 配置 STT 模型，且服务器安装 ffmpeg（QQ 语音是 silk/amr 格式，要先转 wav）。被 @ 的语音由 AstrBot 自带的 STT 处理，不受此开关影响；关掉后语音只保留 [语音] 占位符。"
+      },
+      "read_forward": {
+        "description": "读合并转发（展开成逐条内容）",
+        "type": "bool",
+        "default": true,
+        "hint": "调平台的 get_forward_msg 接口联网展开（不是模型调用，不产生模型费用）。失败或超时会保留 [合并转发] 占位符，不影响其它判定。"
+      },
+      "forward_max_items": {
+        "description": "转发最多展开几条",
+        "type": "int",
+        "default": 20,
+        "hint": "长转发（几百条）全塞进判定上下文没有意义，还费 token。"
+      },
+      "forward_max_chars": {
+        "description": "转发展开后总字数上限",
+        "type": "int",
+        "default": 600
+      },
+      "forward_timeout_sec": {
+        "description": "转发展开超时（秒）",
+        "type": "int",
+        "default": 8,
+        "hint": "平台接口偶尔很慢，超时就放弃这条转发，别把后台队列堵住。"
+      },
+      "images_per_tick": {
+        "description": "每轮最多处理几张新图",
+        "type": "int",
+        "default": 3,
+        "hint": "每次判定最多新转述几张图（缓存命中的不计）。调大更懂图，但更慢更贵。"
+      },
+      "vision_provider_id": {
+        "description": "图片转述用哪个模型",
+        "type": "string",
+        "default": "",
+        "_special": "select_provider",
+        "hint": "必须选支持图片输入的模型。留空 = 跟随 AstrBot 的「图片转述模型」设置。"
+      },
+      "stt_provider_id": {
+        "description": "语音转写用哪个模型",
+        "type": "string",
+        "default": "",
+        "_special": "select_provider_stt",
+        "hint": "选一个语音转写（STT）类型的模型。留空 = 用 AstrBot 默认的 STT。"
+      },
+      "stt_timeout_sec": {
+        "description": "语音转写超时（秒）",
+        "type": "int",
+        "default": 60,
+        "hint": "STT 接口耗时取决于模型和网络。后台队列串行，超时后放弃这条，避免堵住后面的图片。"
+      },
+      "cache_ttl_hours": {
+        "description": "转述/转写缓存保留几小时",
+        "type": "int",
+        "default": 168
+      },
+      "skip_stickers": {
+        "description": "跳过表情包（不转述）",
+        "type": "bool",
+        "default": true,
+        "hint": "群里的图片有相当比例是收藏/商城表情（sub_type=1），跳过能省识图成本，上下文里记为 [表情]。"
+      }
+    }
+  },
+  "decision": {
+    "description": "决策",
+    "type": "object",
+    "items": {
+      "judge_enabled": {
+        "description": "用模型判断该不该接话",
+        "type": "bool",
+        "default": true
+      },
+      "judge_in_active": {
+        "description": "活跃态也先过判定模型",
+        "type": "bool",
+        "default": true,
+        "hint": "关掉后：活跃态只要掷中发言概率就直接接话，不再调判定模型（省一次调用，也不会被模型用「刚刚说过话」反复否掉）；潜水态仍按模型判定。上面的「用模型判断该不该接话」是总开关，关掉它连概率也不掷。"
+      },
+      "judge_provider_id": {
+        "description": "判断用哪个模型",
+        "type": "string",
+        "default": "",
+        "_special": "select_provider",
+        "hint": "从已配置的模型里挑一个。留空 = 跟随这个群当前在用的对话模型。建议选便宜、快、不开思考的。"
+      },
+      "bot_names": {
+        "description": "机器人自己的名字/外号（可选）",
+        "type": "string",
+        "default": "",
+        "hint": "可选。只有想让机器人被叫名字也应答时才填，有外号用逗号分隔，例如「小明,小明明」。留空时只响应 @ 和引用，不会因为名字误触发。"
+      },
+      "use_persona": {
+        "description": "判定时带上人格设定",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后会把当前会话的人格（system prompt）注入判定提示词，供模型参考语气和视角；通用接话规则始终优先，不被人格设定覆盖。"
+      },
+      "persona_max_chars": {
+        "description": "人格设定最多带多少字",
+        "type": "int",
+        "default": 0,
+        "hint": "0 = 不截断，把人格原文完整带进提示词（判定模型通常不在乎这段长度）。"
+      },
+      "judge_persona": {
+        "description": "判定专用人格（留空则用会话人格）",
+        "type": "text",
+        "default": "",
+        "hint": "判定只关心「这个角色会怎么看这句话」，完整人格卡里的外貌设定、梗表、名字来历帮不上忙，却每次判定都要付一遍 token。这里填一份 200 字左右的浓缩版即可，只在判定时生效，主聊天仍用完整人格。留空 = 跟现在一样。"
+      },
+      "require_reason": {
+        "description": "要求模型给出理由",
+        "type": "bool",
+        "default": true,
+        "hint": "开着输出 REPLY | 理由；关掉只输出 REPLY / SKIP，省几个 token 但日志里就看不到为什么了。"
+      },
+      "speak_prob_active": {
+        "description": "活跃态发言概率",
+        "type": "float",
+        "default": 0.35,
+        "hint": "先掷这个概率，过了才问模型「该不该说」。"
+      },
+      "judge_prompt": {
+        "description": "接话判断提示词",
+        "type": "text",
+        "default": "",
+        "hint": "留空使用内置默认（通用接话规则 + 输出格式）。只允许输出 REPLY 或 SKIP。"
+      },
+      "probe_prompt": {
+        "description": "冷场开话题用的提示词",
+        "type": "text",
+        "default": "",
+        "hint": "留空用内置默认。可用占位符：{persona_name} {persona_mask} {stack_size} {messages}；人格只影响表达，不影响判定规则。"
+      }
+    }
+  },
+  "probe": {
+    "description": "冷场主动开话题",
+    "type": "object",
+    "items": {
+      "enabled": {
+        "description": "允许主动开话题",
+        "type": "bool",
+        "default": false,
+        "hint": "只在活跃态发生；潜水态永远不主动开话题。默认关闭，观察稳定后再开。"
+      },
+      "probe_idle_min": {
+        "description": "群里静默几分钟才尝试",
+        "type": "float",
+        "default": 10.0
+      },
+      "probe_prob": {
+        "description": "尝试开话题的概率",
+        "type": "float",
+        "default": 0.6,
+        "hint": "每次尝试开话题的概率；没中会等冷却后再试。"
+      },
+      "probe_wait_min": {
+        "description": "抛出后观察几分钟",
+        "type": "float",
+        "default": 4.0,
+        "hint": "窗口内有人接话就继续活跃；到点仍无人理则回潜水。"
+      },
+      "probe_cooldown_min": {
+        "description": "两次开话题之间至少隔几分钟",
+        "type": "float",
+        "default": 15.0,
+        "hint": "两次「尝试开话题」之间至少隔多久（掷骰没中也算一次，避免每秒重掷）。"
+      },
+      "lines_per_hour": {
+        "description": "每群每小时最多说几句",
+        "type": "int",
+        "default": 6,
+        "hint": "按整点前一小时统计，含被 @ 的回复与主动接话（总发言量）。达到上限后不再主动开话题。"
+      }
+    }
+  },
+  "gate": {
+    "description": "发言限流",
+    "type": "object",
+    "items": {
+      "gate_window_sec": {
+        "description": "统计窗口（秒）",
+        "type": "int",
+        "default": 300
+      },
+      "gate_max": {
+        "description": "窗口内最多回几条",
+        "type": "int",
+        "default": 3,
+        "hint": "主动发言与被动回复共用配额。超出的 @ 静默丢弃，不排队不补发。"
+      }
+    }
+  },
+  "debug": {
+    "description": "调试",
+    "type": "object",
+    "items": {
+      "shadow_mode": {
+        "description": "主动发言影子模式（不主动说话）",
+        "type": "bool",
+        "default": true,
+        "hint": "开着时照常判定并记录理由，但不主动接话、不开话题；被 @ / 引用的回复仍由 AstrBot 正常处理。建议先跑一天看日志，确认判断合理再到面板关闭。"
+      },
+      "verbose_log": {
+        "description": "详细日志",
+        "type": "bool",
+        "default": true
+      },
+      "trace_max_items": {
+        "description": "发言档案保留多少条",
+        "type": "int",
+        "default": 100,
+        "hint": "超过后丢最老的。每条约 2~8KB，100 条不到 1MB。/溯源 和面板都读它。"
+      }
+    }
+  }
+}

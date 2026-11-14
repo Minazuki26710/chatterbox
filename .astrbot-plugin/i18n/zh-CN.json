@@ -1,0 +1,14 @@
+{
+  "pages": {
+    "panel": {
+      "title": "话匣子",
+      "description": "状态机、判定流水与闸门用量"
+    }
+  },
+  "views": {
+    "panel": {
+      "title": "话匣子",
+      "description": "状态机、判定流水与闸门用量"
+    }
+  }
+}

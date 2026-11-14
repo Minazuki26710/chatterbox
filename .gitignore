@@ -1,0 +1,25 @@
+# 编译产物与本地环境
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# 运行期数据（插件会在 AstrBot 的 plugin_data 下生成，不该进仓库）
+data/
+*.log
+
+# 本地备份与编辑器
+*.bak-*
+.DS_Store
+.idea/
+.vscode/
+
+# 内部工作文件（跨工具交接与长任务记忆，不进公开仓库）
+AGENTS.md
+HANDOFF.md
+TASK.md
+WORKLOG.md
+OPENSOURCE-TODO.md
+notes/

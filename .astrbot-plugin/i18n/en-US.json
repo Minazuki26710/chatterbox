@@ -1,0 +1,8 @@
+{
+  "views": {
+    "panel": {
+      "title": "Chatterbox",
+      "description": "State machine, verdict log and rate limits"
+    }
+  }
+}
