@@ -413,7 +413,7 @@ def test_public_defaults() -> None:
 
 
 def test_presence_and_gate() -> None:
-    from astrbot_plugin_chatterbox.core.gate import Gate
+    from astrbot_plugin_chatterbox.core.gate import Gate, gap_blocks
     from astrbot_plugin_chatterbox.core.presence import Presence
 
     class FakeCfg:
@@ -493,6 +493,11 @@ def test_presence_and_gate() -> None:
     check("刚说过 -> 拦住", g.gap_ok(t - 3, t, 25.0) is False)
     check("隔够 25 秒 -> 放行", g.gap_ok(t - 25, t, 25.0) is True)
     check("间隔为 0 -> 总是放行", g.gap_ok(t - 0.1, t, 0.0) is True)
+
+    # 叫名字（force）不受最小间隔限制：触发阶段已经记过发言配额（U5-2 回归）
+    check("force 刚说过也放行", gap_blocks(True, t - 1, t, 25.0) is False)
+    check("非 force 刚说过仍拦", gap_blocks(False, t - 1, t, 25.0) is True)
+    check("非 force 间隔够放行", gap_blocks(False, t - 25, t, 25.0) is False)
 
 
 def test_probe() -> None:

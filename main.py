@@ -53,7 +53,7 @@ from .core.decide import (
     pick_judge_provider,
 )
 from .core.forward import parse_forward
-from .core.gate import Gate
+from .core.gate import Gate, gap_blocks
 from .core.presence import MANUAL_AWAKE, MANUAL_SLEEP, Presence, should_sleep
 from .core.segment import has_separator, plan_segments
 from .core.trace import Trace, TraceStore, extract_memories
@@ -741,6 +741,7 @@ class ChatterboxPlugin(Star):
             gid,
             {                "watermark": 0,
                 "last_judge_at": 0.0,
+                "last_throttle_log_at": 0.0,
                 "busy": False,
                 "last_activity_at": 0.0,  # 本群上一次「说话」的时间（管线回复也算）
                 "trigger_seq": 0,  # 每次被 @ / 叫到名字 +1，用来发现「生成期间又有人叫我」
@@ -1210,6 +1211,7 @@ class ChatterboxPlugin(Star):
         active = self.presence.is_active(gid)
         rt = self._rt_of(gid)
         if rt["busy"]:
+            logger.debug(f"{TAG} 判定进行中，暂时忽略新消息 群={gid}")
             return None
 
         # 节奏：活跃态 30s 一次，潜水态 3min 一次；被叫到时（force）不受限
@@ -1219,19 +1221,27 @@ class ChatterboxPlugin(Star):
             else self.cfg.num("state.dive_tick_min", 3.0) * 60.0
         )
         if not force and now - rt["last_judge_at"] < max(10.0, interval):
+            # 静默吞消息会让用户以为插件坏了；按群限频打一条可解释的日志（B1）
+            if now - rt.get("last_throttle_log_at", 0.0) >= 30.0:
+                rt["last_throttle_log_at"] = now
+                logger.info(
+                    f"{TAG} 判定节流 群={gid}：距上次判定 {now - rt['last_judge_at']:.0f}s，"
+                    f"当前状态每 {max(10.0, interval):.0f}s 最多判定一次（正常节奏，不是故障）"
+                )
             return None
 
         st = self.presence.get(gid)
-        allowed, why = self.gate.allow(st, now)
-        if not allowed:
-            logger.info(f"{TAG} 判定前被闸门拦下 群={gid}（{why}）")
-            return None
-
         gap = self.cfg.num("state.active_speak_gap_sec", 25.0)
-        if not self.gate.gap_ok(rt.get("last_activity_at", 0.0), now, gap):
-            rt["last_judge_at"] = now
-            logger.info(f"{TAG} 距上次说话不足 {gap:.0f}s，本次不判 群={gid}")
-            return None
+        if not force:
+            allowed, why = self.gate.allow(st, now)
+            if not allowed:
+                logger.info(f"{TAG} 判定前被闸门拦下 群={gid}（{why}）")
+                return None
+
+            if gap_blocks(False, rt.get("last_activity_at", 0.0), now, gap):
+                rt["last_judge_at"] = now
+                logger.info(f"{TAG} 距上次说话不足 {gap:.0f}s，本次不判 群={gid}")
+                return None
 
         # 活跃态先掷概率；没过就不浪费一次模型调用。
         # 命中之后要不要再问一次判定模型，看 decision.judge_in_active：
@@ -1344,9 +1354,12 @@ class ChatterboxPlugin(Star):
             if rt.get("trigger_seq", 0) != seq_at_start:
                 logger.info(f"{TAG} 判定通过，但期间有人叫我，放弃这次主动接话 群={gid}")
                 return None
-            allowed2, why2 = self.gate.allow(st, now2)
-            if not allowed2 or not self.gate.gap_ok(
-                rt.get("last_activity_at", 0.0), now2, gap
+            allowed2, why2 = True, ""
+            if not force:
+                allowed2, why2 = self.gate.allow(st, now2)
+            if not force and (
+                not allowed2
+                or gap_blocks(False, rt.get("last_activity_at", 0.0), now2, gap)
             ):
                 logger.info(
                     f"{TAG} 判定通过，但期间已经说过话，放弃这次主动接话 群={gid}（{why2 or 'gap'}）"
@@ -1361,7 +1374,9 @@ class ChatterboxPlugin(Star):
             if pending:
                 rt["watermark"] = max(rt["watermark"], pending[-1].seq)
             conv = await self._current_conversation(umo)
-            self.gate.record(st, time.time())
+            if not force:
+                # force（叫名字）在触发阶段已经记过一次发言配额，这里不再重复记
+                self.gate.record(st, time.time())
             rt["last_activity_at"] = time.time()
             # 打上标记：发送前若 trigger_seq 变了（又有人叫我），这条会被丢弃
             event.set_extra(EXTRA_PROACTIVE, True)

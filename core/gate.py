@@ -60,3 +60,14 @@ class Gate:
 
     def count_last_hour(self, st, now: float) -> int:
         return len([t for t in st.speak_ts if t >= now - 3600])
+
+
+def gap_blocks(force: bool, last_activity_at: float, now: float, gap: float) -> bool:
+    """是否因最小发言间隔而跳过判定。
+
+    被叫到（force=True，例如提及昵称）时不受此限：触发阶段已经过一次
+    闸门并记录了发言，若这里再拦一次，叫名字通道会被恒定拦死。
+    """
+    if force:
+        return False
+    return not Gate.gap_ok(last_activity_at, now, gap)
